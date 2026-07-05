@@ -1,6 +1,4 @@
-`SharedArrayBuffer`をブラウザで有効にするため、セキュリティヘッダーを強制します。
-```http
+http
 /*
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Embedder-Policy: require-corp
-```
