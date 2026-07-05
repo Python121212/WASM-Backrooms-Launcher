@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>WNSV Launcher</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>WNSV SYSTEM v0.1</h1>
+            <p>Target: Escape the Backrooms</p>
+        </header>
+
+        <main>
+            <div class="control-panel">
+                <!-- フォルダ選択インプット -->
+                <label class="btn-import">
+                    ゲームフォルダを選択 (PC版の未改造データ)
+                    <input type="file" id="folder-picker" webkitdirectory directory multiple style="display:none;">
+                </label>
+                
+                <button id="btn-play" class="btn-disabled" disabled>GAME START</button>
+            </div>
+
+            <div class="status-panel">
+                <div class="status-item">
+                    <span>仮想Cドライブ状態:</span>
+                    <span id="disk-status" class="status-error">未インポート</span>
+                </div>
+                <div class="progress-container">
+                    <div id="progress-bar" style="width: 0%;"></div>
+                </div>
+                <div id="log-window">
+                    <p class="system-log">[SYSTEM] 初期化中...</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // 1. Service Workerの登録
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').then(() => {
+                log('[SYSTEM] PWAサービスワーカー有効化');
+            });
+        }
+
+        const logWindow = document.getElementById('log-window');
+        const folderPicker = document.getElementById('folder-picker');
+        const btnPlay = document.getElementById('btn-play');
+        const diskStatus = document.getElementById('disk-status');
+        const progressBar = document.getElementById('progress-bar');
+
+        function log(message, type = 'info') {
+            const p = document.createElement('p');
+            p.className = type === 'error' ? 'system-log log-error' : 'system-log';
+            p.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logWindow.appendChild(p);
+            logWindow.scrollTop = logWindow.scrollHeight;
+        }
+
+        // 2. 仮想ディスク（OPFS）内にゲームデータがあるかチェック
+        async function checkVirtualDisk() {
+            try {
+                const root = await navigator.storage.getDirectory();
+                // 簡易チェック：Engineフォルダやゲームの実行ファイル名を探す
+                let hasFiles = false;
+                for await (const entry of root.values()) {
+                    if (entry.name === "EscapeTheBackrooms" || entry.kind === "file") {
+                        hasFiles = true;
+                    }
+                }
+
+                if (hasFiles) {
+                    diskStatus.textContent = "インポート済み (Ready)";
+                    diskStatus.className = "status-success";
+                    btnPlay.disabled = false;
+                    btnPlay.className = "btn-active";
+                    log("[SYSTEM] ゲームデータを検出しました。起動可能です。");
+                } else {
+                    diskStatus.textContent = "未検出";
+                    diskStatus.className = "status-error";
+                    btnPlay.disabled = true;
+                    btnPlay.className = "btn-disabled";
+                }
+            } catch (err) {
+                log("[ERROR] OPFSアクセス失敗: " + err.message, 'error');
+            }
+        }
+
+        // 3. フォルダのインポートとOPFSへのコピー
+        folderPicker.addEventListener('change', async (e) => {
+            const files = e.target.files;
+            if (files.length === 0) return;
+
+            log(`[DISK] インポート開始: ${files.length} 個のファイルを検出`);
+            const root = await navigator.storage.getDirectory();
+            let importedCount = 0;
+
+            for (let file of files) {
+                try {
+                    const pathParts = file.webkitRelativePath.split('/');
+                    let currentDir = root;
+
+                    // OPFS内にフォルダ階層を再構築
+                    for (let i = 1; i < pathParts.length - 1; i++) {
+                        currentDir = await currentDir.getDirectoryHandle(pathParts[i], { create: true });
+                    }
+
+                    // ファイルの書き込み
+                    const fileHandle = await currentDir.getFileHandle(pathParts[pathParts.length - 1], { create: true });
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(file);
+                    await writable.close();
+
+                    importedCount++;
+                    const percent = Math.round((importedCount / files.length) * 100);
+                    progressBar.style.width = `${percent}%`;
+
+                    if (importedCount % 100 === 0 || importedCount === files.length) {
+                        log(`[DISK] 書き込み中: ${importedCount}/${files.length}...`);
+                    }
+                } catch (err) {
+                    log(`[WARN] 書き込み失敗 (${file.name}): ` + err.message, 'error');
+                }
+            }
+
+            log("[DISK] インポート処理完了");
+            await checkVirtualDisk();
+        });
+
+        // 4. ゲーム開始ボタンクリック
+        btnPlay.addEventListener('click', () => {
+            log("[SYSTEM] エミュレータスレッド起動中...");
+            const emulatorWorker = new Worker('worker.js');
+            
+            // 共有スレッドメモリ（SharedArrayBuffer）の準備
+            const sharedBuffer = new SharedArrayBuffer(1024); // 通信用の仮想レジスタ
+            emulatorWorker.postMessage({ type: 'START', buffer: sharedBuffer });
+
+            emulatorWorker.onmessage = (event) => {
+                log(`[VM] ${event.data.message}`);
+            };
+        });
+
+        // 初期チェック実行
+        checkVirtualDisk();
+    </script>
+</body>
+</html>
