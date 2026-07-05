@@ -1,0 +1,16 @@
+{
+  "short_name": "WNSV",
+  "name": "WNSV Backrooms Launcher",
+  "icons": [
+    {
+      "src": "https://pub-c5e31b5cdafb419a86a90d1d34f1073a.r2.dev/dino.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/index.html",
+  "background_color": "#0a0a0a",
+  "theme_color": "#111111",
+  "display": "standalone",
+  "orientation": "landscape"
+}
