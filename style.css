@@ -1,113 +1,40 @@
-body {
-    background-color: #0a0a0a;
-    color: #e5e5cb;
-    font-family: 'Courier New', Courier, monospace;
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-}
-
-#app {
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-    padding: 20px;
+/* 既存のスタイルに以下を追加 */
+.steam-login-box {
+    background-color: #111;
+    border: 1px solid #ffd966;
+    padding: 15px;
+    margin-bottom: 20px;
     box-sizing: border-box;
 }
 
-header {
-    border-bottom: 2px solid #3f3f3f;
-    padding-bottom: 10px;
-}
-
-h1 {
-    margin: 0;
+.steam-login-box h3 {
+    margin-top: 0;
     color: #ffd966;
-    font-size: 24px;
+    font-size: 16px;
 }
 
-main {
-    display: flex;
-    flex: 1;
-    margin-top: 20px;
-    gap: 20px;
-}
-
-.control-panel {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 20px;
-}
-
-.btn-import, #btn-play {
+.steam-login-box input {
     display: block;
     width: 100%;
-    padding: 20px;
-    font-size: 16px;
-    font-weight: bold;
-    text-align: center;
-    cursor: pointer;
-    border: 2px solid #ffd966;
-    background-color: #1a1a1a;
+    padding: 10px;
+    margin-bottom: 10px;
+    background-color: #050505;
+    border: 1px solid #3f3f3f;
     color: #ffd966;
     box-sizing: border-box;
+    font-family: monospace;
 }
 
-#btn-play.btn-disabled {
-    border-color: #3f3f3f;
-    color: #3f3f3f;
-    cursor: not-allowed;
-}
-
-#btn-play.btn-active {
+#btn-download-steam {
+    width: 100%;
+    padding: 12px;
     background-color: #ffd966;
     color: #0a0a0a;
+    border: none;
+    font-weight: bold;
+    cursor: pointer;
 }
 
-.status-panel {
-    flex: 1.5;
-    display: flex;
-    flex-direction: column;
-    background-color: #111;
-    border: 1px solid #3f3f3f;
-    padding: 15px;
-    box-sizing: border-box;
+#btn-download-steam:hover {
+    background-color: #e6c25c;
 }
-
-.status-item {
-    font-size: 16px;
-    margin-bottom: 10px;
-}
-
-.status-success { color: #8fce00; }
-.status-error { color: #f44336; }
-
-.progress-container {
-    width: 100%;
-    background-color: #222;
-    height: 10px;
-    margin-bottom: 15px;
-}
-
-#progress-bar {
-    background-color: #ffd966;
-    height: 100%;
-    transition: width 0.1s ease;
-}
-
-#log-window {
-    flex: 1;
-    background-color: #050505;
-    border: 1px solid #222;
-    padding: 10px;
-    overflow-y: auto;
-    font-size: 12px;
-}
-
-.system-log {
-    margin: 4px 0;
-}
-
-.log-error { color: #f44336; }
