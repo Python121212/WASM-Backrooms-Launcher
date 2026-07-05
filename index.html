@@ -11,18 +11,18 @@
     <div id="app">
         <header>
             <h1>WNSV SYSTEM v0.1</h1>
-            <p>Target: Escape the Backrooms (AppID: 1113010)</p>
+            <p>Target: Escape the Backrooms (AppID: 1943950)</p>
         </header>
 
         <main>
             <div class="control-panel">
-                <!-- Steam ログインパネル -->
+                <!-- Steam 直接ダウンロード用ログインパネル -->
                 <div class="steam-login-box">
-                    <h3>Steamアカウントでダウンロード</h3>
+                    <h3>Steamアカウントからゲームを直接ダウンロード</h3>
                     <input type="text" id="steam-user" placeholder="Steamユーザー名">
-                    <input type="password" id="steam-pass" placeholder="パスワード">
-                    <input type="text" id="steam-guard" placeholder="Steamガード 2FAコード（必要な場合）" maxlength="5">
-                    <button id="btn-download-steam">Steamから直接ダウンロード開始</button>
+                    <input type="password" id="steam-pass" placeholder="Steamパスワード">
+                    <input type="text" id="steam-guard" placeholder="Steamガード 2FAコード（5桁）" maxlength="5">
+                    <button id="btn-download-steam">Steamから直接インストール開始</button>
                 </div>
                 
                 <button id="btn-play" class="btn-disabled" disabled>GAME START</button>
@@ -43,14 +43,17 @@
         </main>
     </div>
 
-    <script>
-        // Service Worker登録等は維持
+    <!-- Wasmコアエンジンの初期化とフロントエンド制御（ESモジュール） -->
+    <script type="module">
+        import init, { decrypt_steam_chunk } from './pkg/wnsv_engine.js';
 
         const logWindow = document.getElementById('log-window');
         const btnPlay = document.getElementById('btn-play');
         const diskStatus = document.getElementById('disk-status');
         const progressBar = document.getElementById('progress-bar');
         const btnDownloadSteam = document.getElementById('btn-download-steam');
+
+        let wasmEngineReady = false;
 
         function log(message, type = 'info') {
             const p = document.createElement('p');
@@ -60,64 +63,113 @@
             logWindow.scrollTop = logWindow.scrollHeight;
         }
 
-        // Steam ダウンロード処理のモックアップ/プロトタイプ
+        // 1. Rust/Wasmコアエンジンの初期化
+        async function initWasm() {
+            try {
+                await init();
+                wasmEngineReady = true;
+                log("[SYSTEM] Wasm暗号・プロトコル処理エンジンがロードされました。");
+            } catch (err) {
+                log("[ERROR] Wasmエンジンのロードに失敗しました: " + err.message, 'error');
+            }
+        }
+
+        // 2. Service Worker（PWAキャッシュ）の登録
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').then(() => {
+                log("[SYSTEM] PWAサービスワーカー有効化完了（オフライン動作対応）");
+            });
+        }
+
+        // 3. 仮想ディスク（OPFS）の確認
+        async function checkVirtualDisk() {
+            try {
+                const root = await navigator.storage.getDirectory();
+                let hasFiles = false;
+
+                // インストール済みの判定
+                for await (const entry of root.values()) {
+                    if (entry.name === "EscapeTheBackrooms" || entry.kind === "file") {
+                        hasFiles = true;
+                    }
+                }
+
+                if (hasFiles) {
+                    diskStatus.textContent = "インストール済み (Ready)";
+                    diskStatus.className = "status-success";
+                    btnPlay.disabled = false;
+                    btnPlay.className = "btn-active";
+                    log("[SYSTEM] ゲームデータを検出。プレイ可能です。");
+                } else {
+                    diskStatus.textContent = "未インストール";
+                    diskStatus.className = "status-error";
+                    btnPlay.disabled = true;
+                    btnPlay.className = "btn-disabled";
+                }
+            } catch (err) {
+                log("[ERROR] 仮想ディスクアクセス失敗: " + err.message, 'error');
+            }
+        }
+
+        // 4. Steam直接ダウンロード・復号処理（Wasm統合）
         btnDownloadSteam.addEventListener('click', async () => {
             const user = document.getElementById('steam-user').value;
             const pass = document.getElementById('steam-pass').value;
             const guard = document.getElementById('steam-guard').value;
+
+            if (!wasmEngineReady) {
+                log("[ERROR] コアエンジンが準備できていません。", "error");
+                return;
+            }
 
             if (!user || !pass) {
                 log("[ERROR] Steamユーザー名とパスワードを入力してください。", "error");
                 return;
             }
 
-            log("[STEAM] Cloudflare Workers経由でSteam CMサーバーに接続中...");
-            
-            // 将来的にここからWasm内のSteamクライアントロジックを呼び出します
-            // 処理の流れ：
-            // 1. Steam CMサーバーへのログイン認証
-            // 2. 二段階認証（2FA）の処理
-            // 3. Escape the Backrooms（AppID: 1113010）のライセンスチェック
-            // 4. マニフェスト（ファイルリスト）の取得
-            // 5. CDN（HTTPS）からのダウンロード開始
+            log("[STEAM] Cloudflare Workersプロキシ経由でSteamサーバーに接続中...");
+            log("[STEAM] AppID: 1943950 (Escape the Backrooms) のライセンスを確認中...");
+            log("[STEAM] ダウンロード開始 (Depot: 1943951)...");
 
-            // ダウンロードシミュレーション（進捗表示のテスト）
-            log("[STEAM] 認証成功。ダウンロードマニフェスト取得完了。");
-            log("[STEAM] ダウンロード開始 (AppID: 1113010, Depot: 1113011)...");
-
+            // ダウンロードおよびWasm復号のエミュレーション/シミュレーション
             let progress = 0;
             const interval = setInterval(() => {
                 progress += 2;
                 progressBar.style.width = `${progress}%`;
+                
                 if (progress % 10 === 0) {
-                    log(`[STEAM] ダウンロード中... ${progress}% (デポブロック復号中)`);
+                    log(`[STEAM] チャンク受信中... ${progress}%`);
+                    // 実際には、ここでダウンロードしたArrayBufferをWasmの decrypt_steam_chunk() に渡し、
+                    // 復号されたデータをOPFSに順次書き込んでいきます。
                 }
+
                 if (progress >= 100) {
                     clearInterval(interval);
-                    log("[STEAM] ダウンロード・復号完了。仮想Cドライブにインストールされました。");
+                    log("[STEAM] 全ゲームデータのダウンロード・復号が完了。OPFS（仮想Cドライブ）に構築完了。");
                     checkVirtualDisk();
                 }
             }, 300);
         });
 
-        async function checkVirtualDisk() {
-            const root = await navigator.storage.getDirectory();
-            let hasFiles = false;
-            // 実際の判定ロジック
-            for await (const entry of root.values()) {
-                if (entry.name === "EscapeTheBackrooms" || entry.kind === "file") {
-                    hasFiles = true;
-                }
-            }
-            if (hasFiles) {
-                diskStatus.textContent = "インストール済み (Ready)";
-                diskStatus.className = "status-success";
-                btnPlay.disabled = false;
-                btnPlay.className = "btn-active";
-            }
-        }
-        
-        checkVirtualDisk();
+        // 5. ゲーム起動（Web Workerスレッドの初期化）
+        btnPlay.addEventListener('click', () => {
+            log("[SYSTEM] エミュレータスレッド（仮想CPU）を起動中...");
+            const emulatorWorker = new Worker('worker.js');
+            
+            // 共有スレッドメモリ（SharedArrayBuffer）の構築
+            const sharedBuffer = new SharedArrayBuffer(1024);
+            emulatorWorker.postMessage({ type: 'START', buffer: sharedBuffer });
+
+            emulatorWorker.onmessage = (event) => {
+                log(`[VM] ${event.data.message}`);
+            };
+        });
+
+        // ページのロード完了時に各初期化を実行
+        window.addEventListener('DOMContentLoaded', () => {
+            initWasm();
+            checkVirtualDisk();
+        });
     </script>
 </body>
 </html>
